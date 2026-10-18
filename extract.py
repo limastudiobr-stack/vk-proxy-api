@@ -3,6 +3,7 @@ import json
 import urllib.request
 import urllib.parse
 import re
+import os
 
 if len(sys.argv) < 2:
     print(json.dumps({"error": "Nenhuma URL fornecida"}))
@@ -39,7 +40,6 @@ try:
     data_bytes = post_data.encode("utf-8")
     req = urllib.request.Request(req_url, data=data_bytes, headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=15) as response:
-        # Corrige o erro de decode ignorando bytes inválidos
         raw_html = response.read().decode("utf-8", errors="ignore")
 
     raw_html = raw_html.replace("\\/", "/").replace("\\\"", "\"").replace("\\u0026", "&").replace("&amp;", "&")
@@ -52,7 +52,16 @@ try:
         if res not in qualities:
             qualities[res] = link
 
-    print(json.dumps({"success": True, "links": qualities}))
+    result_data = {"success": True, "links": qualities}
+    
+    # Salva diretamente num arquivo local temporário que o GitHub Actions pode expor como artefato ultra-rápido
+    with open("result.json", "w") as f:
+        json.dump(result_data, f)
+
+    print(json.dumps(result_data))
 
 except Exception as e:
-    print(json.dumps({"error": str(e)}))
+    err_data = {"error": str(e)}
+    with open("result.json", "w") as f:
+        json.dump(err_data, f)
+    print(json.dumps(err_data))
