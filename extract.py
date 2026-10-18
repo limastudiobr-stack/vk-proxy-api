@@ -17,6 +17,7 @@ if not m:
 else:
     oid = m.group(1)
     vid = m.group(2)
+    file_key = f"{oid}_{vid}"
 
     list_token = ""
     m_list = re.search(r"list=([^&]+)", url_input)
@@ -57,13 +58,13 @@ else:
 
 json_str = json.dumps(result_data)
 
-# Salva via API de Conteudo do GitHub (Instantaneo, sem git push)
+# Salva com nome unico baseado no video (ex: res_-123_456.json) para nunca pegar cache antigo
 token = os.environ.get("GH_TOKEN")
 repo = os.environ.get("GITHUB_REPOSITORY")
 
 if token and repo:
-    # 1. Busca o SHA do result.json caso ele ja exista
-    get_url = f"https://api.github.com/repos/{repo}/contents/result.json"
+    filename = f"res_{oid}_{vid}.json"
+    get_url = f"https://api.github.com/repos/{repo}/contents/{filename}"
     req_get = urllib.request.Request(get_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
     sha = None
     try:
@@ -73,9 +74,8 @@ if token and repo:
     except Exception:
         pass
 
-    # 2. Faz o PUT direto do novo result.json
     put_data = {
-        "message": "Fast update result",
+        "message": f"Update {filename}",
         "content": base64.b64encode(json_str.encode()).decode(),
         "branch": "main"
     }
@@ -91,5 +91,5 @@ if token and repo:
     try:
         with urllib.request.urlopen(req_put) as resp:
             pass
-    except Exception as e:
-        print("Erro ao atualizar via API:", e)
+    except Exception:
+        pass
