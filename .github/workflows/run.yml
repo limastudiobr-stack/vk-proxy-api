@@ -21,12 +21,6 @@ jobs:
           python-version: '3.10'
 
       - name: Run Extraction Script
-        run: python extract.py "${{ github.event.inputs.video_url }}" > result.json
-
-      - name: Commit and Push Result
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add result.json
-          git commit -m "Update extraction result" || exit 0
-          git push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python extract.py "${{ github.event.inputs.video_url }}"
