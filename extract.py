@@ -58,7 +58,6 @@ else:
 
 json_str = json.dumps(result_data)
 
-# Salva com nome unico baseado no video (ex: res_-123_456.json) para nunca pegar cache antigo
 token = os.environ.get("GH_TOKEN")
 repo = os.environ.get("GITHUB_REPOSITORY")
 
