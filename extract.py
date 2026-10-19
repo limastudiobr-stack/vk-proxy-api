@@ -5,6 +5,7 @@ import urllib.parse
 import re
 import os
 import base64
+from datetime import datetime, timezone, timedelta
 
 if len(sys.argv) < 2:
     sys.exit(1)
@@ -17,7 +18,6 @@ if not m:
 else:
     oid = m.group(1)
     vid = m.group(2)
-    file_key = f"{oid}_{vid}"
 
     list_token = ""
     m_list = re.search(r"list=([^&]+)", url_input)
@@ -62,9 +62,61 @@ token = os.environ.get("GH_TOKEN")
 repo = os.environ.get("GITHUB_REPOSITORY")
 
 if token and repo:
+    api_headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+    }
+
+    # 1. LIMPEZA AUTOMÁTICA: Apaga arquivos res_*.json com mais de 24 horas
+    try:
+        list_url = f"https://api.github.com/repos/{repo}/contents/"
+        req_list = urllib.request.Request(list_url, headers=api_headers)
+        with urllib.request.urlopen(req_list) as resp:
+            files = json.loads(resp.read().decode())
+            now = datetime.now(timezone.utc)
+            
+            for file in files:
+                fname = file.get("name", "")
+                if fname.startswith("res_") and fname.endswith(".json"):
+                    # Pega os detalhes do commit/arquivo para saber a data
+                    f_url = file.get("url")
+                    req_f = urllib.request.Request(f_url, headers=api_headers)
+                    try:
+                        with urllib.request.urlopen(req_f) as f_resp:
+                            f_data = json.loads(f_resp.read().decode())
+                            # Como a API de contents não traz data direta, usamos o histórico de commits do arquivo
+                            commits_url = f"https://api.github.com/repos/{repo}/commits?path={fname}&per_page=1"
+                            req_c = urllib.request.Request(commits_url, headers=api_headers)
+                            with urllib.request.urlopen(req_c) as c_resp:
+                                commits = json.loads(c_resp.read().decode())
+                                if commits:
+                                    date_str = commits[0]["commit"]["committer"]["date"]
+                                    file_date = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                                    
+                                    # Se passou de 24 horas, deleta o arquivo expirado
+                                    if now - file_date > timedelta(hours=24):
+                                        del_data = {
+                                            "message": f"Auto-delete expired cache {fname}",
+                                            "sha": file.get("sha"),
+                                            "branch": "main"
+                                        }
+                                        req_del = urllib.request.Request(
+                                            f"https://api.github.com/repos/{repo}/contents/{fname}",
+                                            data=json.dumps(del_data).encode(),
+                                            headers=api_headers,
+                                            method="DELETE"
+                                        )
+                                        urllib.request.urlopen(req_del)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    # 2. SALVA O NOVO ARQUIVO DE CACHE DO VÍDEO ATUAL
     filename = f"res_{oid}_{vid}.json"
     get_url = f"https://api.github.com/repos/{repo}/contents/{filename}"
-    req_get = urllib.request.Request(get_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
+    req_get = urllib.request.Request(get_url, headers=api_headers)
     sha = None
     try:
         with urllib.request.urlopen(req_get) as resp:
@@ -74,7 +126,7 @@ if token and repo:
         pass
 
     put_data = {
-        "message": f"Update {filename}",
+        "message": f"Update cache {filename}",
         "content": base64.b64encode(json_str.encode()).decode(),
         "branch": "main"
     }
@@ -84,7 +136,7 @@ if token and repo:
     req_put = urllib.request.Request(
         get_url,
         data=json.dumps(put_data).encode(),
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/vnd.github+json"},
+        headers=api_headers,
         method="PUT"
     )
     try:
