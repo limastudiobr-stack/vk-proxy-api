@@ -5,7 +5,6 @@ import urllib.parse
 import re
 import os
 import base64
-from datetime import datetime, timezone
 
 if len(sys.argv) < 2:
     sys.exit(1)
@@ -52,11 +51,8 @@ else:
             if res not in qualities:
                 qualities[res] = link
 
-        # Adiciona o carimbo de data/hora atual para o app validar as 24h
-        current_timestamp = int(datetime.now(timezone.utc).timestamp())
         result_data = {
-            "success": True, 
-            "created_at": current_timestamp,
+            "success": True,
             "links": qualities
         }
     except Exception as e:
@@ -86,7 +82,7 @@ if token and repo:
         pass
 
     put_data = {
-        "message": f"Fast cache {filename}",
+        "message": f"Cache update {filename}",
         "content": base64.b64encode(json_str.encode()).decode(),
         "branch": "main"
     }
